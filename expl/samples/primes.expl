@@ -1,0 +1,26 @@
+int main()
+{
+decl
+    int t1,t2,temp,prime;
+enddecl
+begin
+    t1=2;
+    while ( t1 <= 100 ) do
+	prime = 1;
+	t2 = 2;
+	while ( t2 <= (t1/2) ) do
+		if((t1%t2) == 0) then
+			prime = 0;
+			break;
+		endif;
+		t2 = t2 + 1;
+	endwhile;
+	if(prime==1) then
+		write(t1);
+	endif;
+        t1 = t1 + 1;
+    endwhile;
+    return 0;
+end
+}
+

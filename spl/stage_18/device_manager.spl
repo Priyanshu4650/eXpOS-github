@@ -1,0 +1,87 @@
+// Device Manager
+
+alias functionNum R1;
+alias currentPID R2;
+
+// Disk Load Function
+if(functionNum == 2) then
+	
+	alias page_num R3;
+	alias block_num R4;	
+	multipush(R1,R2,R3,R4);
+	R1 = 3;
+	R2 = currentPID;
+	
+	// Calling resource manager for Acquiring disk
+	call MOD_0;
+	multipop(R1,R2,R3,R4);
+	
+	// Storing in Disk Status Table
+	[DISK_STATUS_TABLE + 1] = 0;
+	[DISK_STATUS_TABLE + 2] = page_num;
+	[DISK_STATUS_TABLE + 3] = block_num;
+
+	// load the page number and block number into the disk using 'load' instruction	
+	load(page_num, block_num);
+	
+	// Setting the state as WAIT_DISK
+	[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+	multipush(R1,R2,R3,R4);
+	
+	// Calling the scheduler to schedule the next process to be run
+	call MOD_5;
+	multipop(R1,R2,R3,R4);
+	return;
+endif;
+
+// Reading content of terminal
+if(functionNum == 4) then
+	multipush(R1,R2,R3);
+	R1 = 8;
+	R2 = currentPID;
+	
+	// Calling resource manager
+	call MOD_0;
+
+	multipop(R1,R2,R3);
+	breakpoint;
+	read;
+	[PROCESS_TABLE + (currentPID*16) + 4] = WAIT_TERMINAL;
+	multipush(R1,R2,R3);
+	
+	// Calling scheduler
+	call MOD_5;
+	
+	multipop(R1,R2,R3);
+
+	// After reading
+	alias word_physical_address R4;
+	word_physical_address = ([PTBR + 2*(R3/512)]*512) + (R3%512);
+	breakpoint;
+	[word_physical_address] = [PROCESS_TABLE + (currentPID*16) + 8];
+	return;
+endif;
+
+// Writing on to the terminal
+if(functionNum == 3) then
+	multipush(R1,R2,R3);
+	R1 = 8;
+	R2 = currentPID;
+	
+	// Scheduler
+	call MOD_0;
+	multipop(R1,R2,R3);
+	print R3;
+
+	multipush(R1,R2,R3);
+	R1 = 9;
+	R2 = currentPID;
+	
+	// Calling scheduler
+	call MOD_0;
+	multipop(R1,R2,R3);
+	return;
+	
+else
+	return;
+endif;

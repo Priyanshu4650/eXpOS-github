@@ -1,0 +1,158 @@
+// INT 8 Module
+
+// Setting the mode to be as 8 for FORK system call
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 8;
+
+// Saving SP in userSP
+alias userSP R0;
+userSP = SP;
+
+// Saving the parent Process ID by getting it from SYSTEM_STATUS_TABLE
+alias parentID R1;
+parentID = [SYSTEM_STATUS_TABLE + 1];
+
+alias childID R2;
+childID = 0;
+
+// Setting the UPTR as SP
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
+
+// Setting up of the kernel stack
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 + 1;
+
+multipush(R0,R1);
+
+// Calling Get PCB Entry from Process manager for the child process
+// Get PCB entry returns the index of the new process table allocated for the child process.
+// Index is saved as the PID
+R1 = 1;
+call MOD_1;
+childID = R0;
+multipop(R0,R1);
+
+// If child process can be created or not
+if(childID == -1) then 
+	// If -1 is returned in that case store -1 in the stack and switch to the user mode.
+	[[PAGE_TABLE_BASE + (parentID*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+	[PROCESS_TABLE + (parentID*16) + 9] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+alias counter R3;
+counter = 0;
+
+// Checking for the heap allocation before fork call
+// To satisfy the eXpOS sharing semantics we have to allocate teh heap pages that the parent and child will share
+// Invoke Get free page from memory manager to allocate free page for parent process 
+while(counter <= 1) do
+
+	// If page is not allocated
+	if([PAGE_TABLE_BASE + parentID*20 + 4 + 2*counter] == -1) then
+		multipush(R0,R1,R2,R3);
+
+		// Allocation of heap page if in case its not allocated
+		// Calling memory manager (Get Free Page)
+		R1 = 1;
+		call MOD_2;
+		[PAGE_TABLE_BASE + (parentID*20) + 4 + 2*counter] = R0;
+		[PAGE_TABLE_BASE + (parentID*20) + 4 + 2*counter + 1] = "1110";
+		multipop(R0,R1,R2,R3);
+	endif;
+	counter = counter + 1;
+endwhile;
+
+// Doing the same thing as above to get 2 stack pages and a user area page
+// To get a stack page and user area page for the child process
+counter = 0;
+while(counter <= 2) do
+	multipush(R0,R1,R2,R3);
+
+	// Allocation of the stack page for the child process
+	// Calling the memory manager (Get Free Page)
+	R1 = 1;
+	call MOD_2;
+	if(counter == 2) then
+		[PROCESS_TABLE + childID*16 + 11] = R0;  //user area page number	
+	else
+		[PAGE_TABLE_BASE + childID*20 + 16 + 2*counter] = R0;
+		[PAGE_TABLE_BASE + childID*20 + 16 + 2*counter + 1] = [PAGE_TABLE_BASE + parentID*20 + 16 + 2*counter + 1];
+	endif;
+	multipop(R0,R1,R2,R3);
+	counter = counter + 1;
+endwhile;
+
+// User ID
+// Copying it because both processes are using the same user
+[PROCESS_TABLE + childID*16 + 3] = [PROCESS_TABLE + parentID*16 + 3];
+// Swap flag (discussed later)
+[PROCESS_TABLE + childID*16 + 6] = [PROCESS_TABLE + parentID*16 + 6];
+// User area swap status (discussed later)
+[PROCESS_TABLE + childID*16 + 10] = [PROCESS_TABLE + parentID*16 + 10];
+// Inode index table 
+// Will be same as both of them run the same program
+[PROCESS_TABLE + childID*16 + 7] = [PROCESS_TABLE + parentID*16 + 7]; 
+// UPTR
+// Content in the user stack is same for both the processes and hence to resume the execution in user mode the value of SP must be the same
+[PROCESS_TABLE + childID*16 + 13] = [PROCESS_TABLE + parentID*16 + 13]; 
+
+// Set to 0 as it starts getting executed from start
+// Mode
+[PROCESS_TABLE + childID*16 + 9] = 0;
+// KPTR
+[PROCESS_TABLE + childID*16 + 12] = 0;
+// TICK
+[PROCESS_TABLE + childID*16 + 0] = 0; 
+// PPID
+[PROCESS_TABLE + childID*16 + 2] = parentID;
+// State
+[PROCESS_TABLE + childID*16 + 4] = CREATED; 
+
+// Per - Process disk map table for child
+counter = 0;
+while(counter <= 9) do
+	[DISK_MAP_TABLE + childID*10 + counter] = [DISK_MAP_TABLE + parentID*10 + counter];
+	counter = counter + 1;
+endwhile;
+
+// Page table initializing for the child process
+counter = 0;
+while(counter <= 7) do
+	[PAGE_TABLE_BASE + childID*20 + 2*counter] = [PAGE_TABLE_BASE + parentID*20 + 2*counter];
+	[MEMORY_FREE_LIST + [PAGE_TABLE_BASE + childID*20 + 2*counter]] = [MEMORY_FREE_LIST + [PAGE_TABLE_BASE + childID*20 + 2*counter]] + 1;
+	[PAGE_TABLE_BASE + childID*20 + 2*counter + 1] = [PAGE_TABLE_BASE + parentID*20 + 2*counter + 1];
+	counter = counter + 1;
+endwhile;
+
+// copying everything from parent stack to child stack
+alias parentStack R4;
+alias childStack R5;
+alias word_count R6;
+word_count = 0;
+counter = 8;
+while(counter <= 9) do
+	
+	parentStack = [PAGE_TABLE_BASE + parentID*20 + 2*counter]*512;
+	childStack = [PAGE_TABLE_BASE + childID*20 + 2*counter]*512;
+
+	while(word_count < 512) do
+		[childStack + word_count] = [parentStack + word_count];
+		word_count = word_count + 1;
+	endwhile;
+	word_count = 0;
+	counter = counter + 1;
+endwhile;
+
+
+//Set BP value to top of kernel stack of child
+[[PROCESS_TABLE + childID*16 + 11]*512] = BP;
+[PROCESS_TABLE + childID*16 + 12] = 1;
+
+//Set return values in user stacks for parent and child
+[[PAGE_TABLE_BASE + parentID*20 + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = childID;
+[[PAGE_TABLE_BASE + childID*20 + 2*(([PROCESS_TABLE + childID*16 + 13]-1)/512)]*512 + (([PROCESS_TABLE + childID*16 + 13]-1)%512)] = 0;
+
+// User mode flag to user i.e 0
+[PROCESS_TABLE + parentID*16 + 9] = 0;
+SP = userSP;
+ireturn;

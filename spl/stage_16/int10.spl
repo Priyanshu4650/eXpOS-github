@@ -1,0 +1,34 @@
+//print "enteredint10";
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = TERMINATED;
+
+//print "TERMINATED PROCESS";
+//print [SYSTEM_STATUS_TABLE + 1];
+//print [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4];
+
+alias checkID R1;
+checkID = [SYSTEM_STATUS_TABLE + 1] + 1;
+
+alias num R2;
+num = 1;
+
+while (num < 16) do
+	//print checkID;
+	if(([PROCESS_TABLE + (checkID*16) + 4] == TERMINATED) || checkID == 0) then
+		num = num + 1;
+		//print "this is num";
+		//print num;
+	else
+		//print num;
+		break;
+	endif;
+	checkID = (checkID + 1)%16;
+endwhile;
+
+if(num == 16) then
+	print "boutta halt";
+	halt;
+else
+	//print "callmod5int10";
+	call MOD_5;
+	//print "camemod5int10";
+endif;

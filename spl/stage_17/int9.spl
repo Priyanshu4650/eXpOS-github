@@ -1,0 +1,126 @@
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
+
+alias userSP R0;
+userSP = SP;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 - 1;
+
+// Setting the MODE Flag to to exec system call number i.e. 9
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 9;
+
+PTBR = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
+
+// Getting the file name from userStack
+alias file_name R1;
+file_name = [[PTBR + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+
+// Searching for the file in INODE TABLE
+alias count R2;
+count = 0;
+while(count < MAX_FILE_NUM) do
+	if(([INODE_TABLE + count*16 + 1] == file_name) && ([INODE_TABLE + count*16 + 0] == EXEC)) then
+		print "File found";
+		break;
+	endif;
+	count = count + 1;
+endwhile;
+
+// Condition for file not to be present in the system
+if(count == 60) then
+	print "No Such file present";
+	SP = userSP;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	[[PTBR + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+	ireturn;
+endif;
+
+// Process Manager
+multipush(R0,R1,R2);
+R1 = 3;
+R2 = [SYSTEM_STATUS_TABLE + 1];
+
+// Calling process manager
+call MOD_1;
+multipop(R0,R1,R2);
+
+alias user_area_page_num R3;
+user_area_page_num = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11];
+
+[MEMORY_FREE_LIST + user_area_page_num] = [MEMORY_FREE_LIST + user_area_page_num] + 1;
+
+[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+SP = user_area_page_num*512 - 1;
+
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = RUNNING;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 7] = count;
+
+PTBR = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
+
+// Library page entries
+[PTBR + 0] = 63;
+[PTBR + 1] = "0100";
+[PTBR + 2] = 64;
+[PTBR + 3] = "0100";
+
+multipush(R0,R1,R2,R3);
+
+//STACK ALLOCATION AND VALIDATION IN PAGE TABLE
+R1 = 1;
+
+// Memory Manager
+call MOD_2;
+[PTBR + 16] = R0;
+[PTBR + 17] = "0110";
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = R0;
+
+R1 = 1;
+call MOD_2;
+[PTBR + 18] = R0;
+[PTBR + 19] = "0110";
+
+//HEAP ALLOCATION AND VALIDATION N HEAP TABLE
+R1 = 1;
+call MOD_2;
+[PTBR + 4] = R0;
+[PTBR + 5] = "0110";
+
+R1=1;
+call MOD_2;
+[PTBR + 6] = R0;
+[PTBR + 7] = "0110";
+
+//CODE PAGES
+alias num R4;
+num = 0;
+alias i R5;
+i = 8;
+
+while(i <= 11) do
+	if([INODE_TABLE + count*16 + i] != -1) then
+		num = num + 1;
+	endif;	
+	i = i + 1;
+endwhile;
+i = 8;
+while(num > 0) do
+	R1 = 1;
+	call MOD_2;
+	[PTBR + i] = R0;
+	[PTBR + i + 1] = "0100";
+	num = num - 1;
+	i = i + 2;
+endwhile;
+
+i = 0;
+while (i<=([INODE_TABLE + count*16 + 2]/PAGE_SIZE) && (i<4) )do
+	R1 = [PTBR + 8 + 2*i];
+	R2 = [INODE_TABLE + count*16 + 8 + i];
+	loadi(R1,R2);
+	i = i + 1;
+endwhile;
+multipop(R0,R1,R2,R3);
+[[PTBR + 16]*512] = [[PTBR + 8]*512 + 1];	
+SP = 8*512;
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+ireturn;

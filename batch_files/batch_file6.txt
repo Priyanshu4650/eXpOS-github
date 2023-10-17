@@ -1,0 +1,5 @@
+fdisk
+load --init ../expl/expl_progs/init_squares.xsm 
+load --int=10 ../spl/spl_progs/haltprog.xsm
+load --exhandler ../spl/spl_progs/haltprog.xsm
+load --os ../spl/spl_progs/os_startupst6.xsm

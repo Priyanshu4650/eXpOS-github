@@ -1,0 +1,21 @@
+fdisk
+load --library ../expl/library.lib
+load --idle ../expl/samples/st12_idle.xsm
+load --init ../expl/samples/readprog17.xsm
+load --exhandler ../spl/spl_progs/haltprog.xsm
+load --module 0 ../spl/stage_17/resource_manager.xsm
+load --module 1 ../spl/stage_17/process_manager.xsm
+load --module 2 ../spl/stage_17/memory_manager.xsm
+load --module 4 ../spl/stage_17/device_manager.xsm
+load --module 5 ../spl/stage_17/scheduler.xsm
+load --module 7 ../spl/spl_progs/module7_boot17.xsm
+load --int=timer ../spl/stage_17/timer.xsm
+load --int=console ../spl/stage_17/console_interrupt.xsm
+load --int=6 ../spl/stage_17/int6.xsm
+load --int=7 ../spl/stage_17/int7.xsm
+load --int=9 ../spl/stage_17/int9.xsm
+load --int=10 ../spl/stage_17/int10.xsm
+load --os ../spl/spl_progs/os_startup_final.xsm
+load --exec ../expl/samples/oddnos.xsm
+load --exec ../expl/samples/evennos.xsm
+load --exec ../expl/samples/numbers.xsm

@@ -1,0 +1,38 @@
+//print "begintimer";
+//print [SYSTEM_STATUS_TABLE + 1];
+breakpoint;
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1] * 16) + 13] = SP;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1] * 16) + 11] * 512 -1;
+
+backup;
+//if (([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] != TERMINATED) || ([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] != WAIT_TERMINAL)) then
+	//print "isterm?";
+	//print [SYSTEM_STATUS_TABLE + 1];
+	//[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = READY;
+//endif;
+if([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] == RUNNING) then
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = READY;
+endif;
+alias countup R3;
+countup = 0;
+
+while (countup < 16) do
+	[PROCESS_TABLE + countup*16] = [PROCESS_TABLE + countup*16] + 1;
+	countup = countup + 1;
+endwhile;
+
+//print "callingmod5timer";
+call MOD_5;
+//print "camemod5timer";
+//print [SYSTEM_STATUS_TABLE + 1];
+restore;
+
+SP = [PROCESS_TABLE + ( [ SYSTEM_STATUS_TABLE + 1] * 16) + 13];
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+
+//print "about to leave timer";
+//print [SYSTEM_STATUS_TABLE + 1];
+breakpoint;
+ireturn;
+

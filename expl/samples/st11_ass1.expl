@@ -1,0 +1,14 @@
+decl
+	int num;
+enddecl
+
+int main() {
+begin
+	num = 1;
+	while(num <= 100) do
+		write(num);
+		num = num + 2;
+	endwhile;
+	return 0;
+end
+}

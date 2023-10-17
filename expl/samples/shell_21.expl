@@ -1,0 +1,40 @@
+int main()
+{
+decl
+	int t,temp,forkval,waitval;
+	string command;
+enddecl
+begin
+	t = 1
+	while(t == 1) do
+		temp = exposcall ( "Write", -2,"Enter Command?");
+		temp = exposcall ( "Read", -1, command);
+	
+		if(command == "Shutdown") then
+			temp = exposcall ( "Shutdown");
+			if(temp == -1) then
+				temp = exposcall ( "Write", -2,"Perm Denied");
+				t = 0;
+			endif;
+
+		else
+			forkval = exposcall ( "Fork" );
+			if(forkval == -1) then
+				temp = exposcall ( "Write", -2,"Failed Fork");
+				t = 0;
+			else
+				if(forkval == 0) then
+					temp = exposcall ( "Exec", command);
+					if(temp == -1) then
+						temp = exposcall ( "Write", -2,"BAD COMMAND");
+					endif;
+					t = 0;
+				else
+					waitval = exposcall ( "Wait", forkval);
+				endif;
+			endif;
+		endif;
+	endwhile;
+	return 0;
+end
+}

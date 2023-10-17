@@ -1,0 +1,26 @@
+int main()
+{
+decl
+	int forkval,temp;
+enddecl
+begin
+	forkval = exposcall ( "Fork");
+
+	if(forkval == -1) then
+		temp = exposcall ("Write" , -2,"Failed to fork");
+	else
+		if(forkval == 0) then
+			temp = exposcall ("Exec" , "odd100.xsm");
+			if(temp == -1) then
+				temp = exposcall ("Write", -2, "Failed");
+			endif;
+		else
+			temp = exposcall ("Exec" , "even100.xsm");
+			if(temp == -1) then
+				temp = exposcall ("Write", -2,"Child process");
+			endif;
+		endif;
+	endif;
+	return 0;
+end
+}

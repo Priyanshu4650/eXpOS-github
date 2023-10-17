@@ -1,0 +1,26 @@
+int main()
+{
+decl
+    int t1,t2,swap1,swap2,temp,h1,h2;
+enddecl
+begin
+    swap1 = 0;
+    h1 = exposcall ( "Read" , -1, t1);
+    h2 = exposcall ( "Read" , -1, t2);
+    if(t1 < t2) then
+	swap1 = t1;
+	t1 = t2;
+	t2 = swap1;
+    endif;
+
+    while(t2 != 0) do
+	swap2 = t2;
+	t2 = (t1%t2);
+	t1 = swap2;
+    endwhile;
+
+    temp = exposcall ( "Write" , -2, t1 );
+    return 0;
+end
+}
+

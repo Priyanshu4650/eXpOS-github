@@ -1,0 +1,64 @@
+// Mod 2
+
+alias FunctionNum R1;
+
+// Getting Free Page
+if(FunctionNum == 1) then
+
+	// Incrementing the count of the number of processes that wants to access the memory
+	// Why ?? 
+	if([PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] != WAIT_TERMINAL) then
+		[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+	endif;
+
+	// Checking condition for mem free count to set the mode to WAIT_MEM
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = WAIT_MEM;
+		
+		// Calling Scheduler
+		call MOD_5;
+	endwhile;
+	
+	// Incrementing mem free count and decrementing wait mem count
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+	// Returning the free page by traversing through the memory pages
+	alias free_page R7;
+	free_page = 0;
+	while(free_page < 128) do
+		if([MEMORY_FREE_LIST + free_page] == 0) then
+			[MEMORY_FREE_LIST + free_page] = 1;
+			R0 = free_page;
+			return;
+		endif;
+		free_page = free_page + 1;
+	endwhile;
+	breakpoint;
+	return;
+endif;
+ 
+// Release Page
+if(FunctionNum == 2) then
+	alias pagenum R2;
+
+	// Decrementing the memory free list by 1
+	[MEMORY_FREE_LIST + pagenum] = [MEMORY_FREE_LIST + pagenum] - 1;
+	if([MEMORY_FREE_LIST + pagenum] == 0) then
+		// Incrementing the memory free count by 1
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+	endif;
+	
+	// Loop to make all the processes ready for execution which are waiting to access memory
+	alias i R6;
+	i = 0;
+	while(i < 16) do
+		if([PROCESS_TABLE + i*16 + 4] == WAIT_MEM) then
+			[PROCESS_TABLE + i*16 + 4] = READY;
+		endif;
+		i = i + 1;
+	endwhile;
+	breakpoint;
+	return;
+endif;
+

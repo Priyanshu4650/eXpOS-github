@@ -1,0 +1,14 @@
+int main()
+{
+decl
+	int pid,ppid,temp,n;
+enddecl
+begin
+	pid = exposcall ( "Getpid" );
+	ppid = exposcall ( "Getppid" );
+	temp = exposcall ( "Write" , -2, pid);
+
+	temp = exposcall ( "Write" , -2, ppid);
+	return 0;
+end
+}

@@ -1,0 +1,15 @@
+fdisk
+load --init ../expl/samples/oddnos.xsm
+load --int=10 ../spl/new_progs/int10st14.xsm
+load --exhandler ../spl/spl_progs/haltprog.xsm
+load --os ../spl/spl_progs/os_startup_final.xsm
+load --library ../expl/library.lib
+load --int=timer ../spl/spl_progs/sample_timer14.xsm
+load --int=7 ../spl/spl_progs/sample_intst15.xsm
+load --idle ../expl/samples/st12_idle.xsm
+load --module 7 ../spl/spl_progs/module7_boot15.xsm
+load --exec ../expl/samples/evennos.xsm
+load --module 5 ../spl/spl_progs/scheduler15.xsm
+load --module 4 ../spl/new_progs/device_manager15.xsm
+load --module 0 ../spl/new_progs/resource_manager15.xsm
+                                                       

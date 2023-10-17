@@ -1,0 +1,9 @@
+fdisk
+load --init ../expl/samples/numbers.xsm 
+load --int=10 ../spl/spl_progs/haltprog.xsm
+load --exhandler ../spl/spl_progs/haltprog.xsm
+load --os ../spl/spl_progs/os_startupst12.xsm
+load --library ../expl/library.lib
+load --int=timer ../spl/spl_progs/sample_timer12.xsm
+load --int=7 ../spl/spl_progs/sample_intst10.xsm
+load --idle ../expl/samples/st12_ass1.xsm

@@ -1,0 +1,58 @@
+// Mod 5 Scheduler
+
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+
+multipush(BP);
+
+alias process_table_entry R1;
+process_table_entry = PROCESS_TABLE + currentPID * 16;
+
+// Setting up kernel stack pointer PTBR and PTLR
+[process_table_entry + 12] = SP % 512;
+[process_table_entry + 14] = PTBR;
+[process_table_entry + 15] = PTLR;
+
+// Used to check for which process to be scheduled next.
+alias counter R2;
+counter = currentPID + 1;
+
+// If no process is ready in that case run the same process again
+alias newPID R3;
+newPID = counter;
+
+while (counter < 16) do
+	if(([PROCESS_TABLE + (counter*16) + 4] == CREATED) || ([PROCESS_TABLE + (counter*16) + 4] == READY)) then
+		newPID = [PROCESS_TABLE + counter*16 + 1];
+		break;
+	else
+		newPID = 0;
+	endif;
+	counter = counter + 1;
+endwhile;
+
+// Creating a new process table for the new process that will be scheduled
+alias new_process_table R4;
+new_process_table = PROCESS_TABLE + newPID * 16;
+
+// Getting the stack pointer, PTBR and PTLR of the new process using the process table for the new process to be scheduled
+SP =  [new_process_table + 11] * 512 + [new_process_table + 12] ;
+PTBR = [new_process_table + 14];
+PTLR = [new_process_table + 15];
+
+// Setting the value of current process id as that of pid we found in the loop
+[SYSTEM_STATUS_TABLE + 1] = newPID;
+
+// If the new process is in CREATED state in that case set it to RUNNING state
+if([new_process_table + 4] == CREATED) then
+        SP = [new_process_table + 13];
+	[new_process_table + 4] = RUNNING;
+	
+	// Setting up the mode to 0 to signify succesfull return
+	[new_process_table + 9] = 0;
+        ireturn;
+endif;
+[new_process_table + 4] = RUNNING;
+multipop(BP);
+
+return;

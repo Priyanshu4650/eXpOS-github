@@ -1,0 +1,88 @@
+// UPTR set krrhe h as SP
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
+
+alias userSP R0;
+userSP = SP;
+
+// Setting up of the kernel stack
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 - 1;
+
+// Why???
+alias sys_num R6;
+sys_num = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-5)/512)]*512 + ((userSP-5)%512)];
+
+alias waitID R1;
+
+// Get PID system call numbers
+if(sys_num == 11) then
+	// Setting up the mode to be as Get pid sys call
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 11;
+	// Setting the current process id in the page table
+	[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = [SYSTEM_STATUS_TABLE + 1];
+	SP = userSP;
+	// SEtting the mode to be user mode as switching to user mode
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	ireturn;
+endif;
+
+// Get PPID sys call number
+if(sys_num == 12) then
+	// Setting up the mode to be as the PPID sys call number
+        [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 12;
+	// Saving the PPID in the page table
+        [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 2];
+        SP = userSP;
+        [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+        ireturn;
+endif;
+
+// Wait system call
+if(sys_num == 13) then
+	// Setting the mode as wait sys call number
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 13;
+	waitID = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+	
+	// Checking whether the wait process if the current process runnnig or it is terminated or out of bounds
+	// In that case return to the user mode
+	if((waitID == [SYSTEM_STATUS_TABLE+1]) || ([PROCESS_TABLE+waitID*16+4]==TERMINATED) || (waitID<0) || (waitID>15)) then
+		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+		SP = userSP;
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+		ireturn;
+	endif;
+
+	// Or else we will make the the process to wait
+
+	// State has two words containing WAIT_PROCESS and waitID
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 4] = WAIT_PROCESS;
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 5] = waitID;
+
+	// Calling the scheduler to schedule another process as this is in WAIT_PROCESS state
+	multipush(R0,R1,R6);
+	call MOD_5;
+	multipop(R0,R1,R6);
+
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	SP = userSP;
+	ireturn;
+endif;
+
+// Signal sys call
+if(sys_num == 14) then
+	// Setting up the mode flag to be signal sys call number
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 14;
+	waitID = 0;
+	// checking through all the processes whether the process is the wait process state with the another state to be pid of the current state
+	while(waitID <= 15) do
+		if(([PROCESS_TABLE + (waitID*16) + 4] == WAIT_PROCESS) && ([PROCESS_TABLE + (waitID*16) + 5] == [SYSTEM_STATUS_TABLE + 1])) then
+			[PROCESS_TABLE + waitID*16 + 4] = READY;
+		endif;
+		waitID = waitID + 1;
+	endwhile;
+
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	SP = userSP;
+	ireturn;
+endif;

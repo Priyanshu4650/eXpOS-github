@@ -1,0 +1,33 @@
+//print "int10begin";
+alias currentPID R0;
+currentPID = [SYSTEM_STATUS_TABLE + 1];
+//print "current";
+//print currentPID;
+[PROCESS_TABLE + currentPID*16 + 4] = TERMINATED;
+alias checkID R1;
+checkID = 1;
+
+alias num R2;
+num = 1;
+
+while (checkID < 16) do
+        if([PROCESS_TABLE + (checkID*16) + 4] == TERMINATED) then
+                num = num + 1;
+                //print "this is num";
+               // print num;
+        else
+                break;
+        endif;
+        checkID = checkID + 1;
+endwhile;
+//print checkID;
+if(num == 16) then
+        print "boutta halt";
+        halt;
+else
+        //print "callmod5int10";
+        //[SYSTEM_STATUS_TABLE + 1] = checkID;
+	call TIMER;
+        //print "camemod5int10";
+endif;
+
