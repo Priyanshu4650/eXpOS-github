@@ -15,7 +15,7 @@ if(FunctionNum == 1) then
 	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
 	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
 
-	alias free_page R7;
+	alias free_page R6;
 	free_page = 0;
 	while(free_page < 128) do
 		if([MEMORY_FREE_LIST + free_page] == 0) then

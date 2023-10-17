@@ -1,0 +1,96 @@
+//print "int14beg";
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
+
+alias userSP R0;
+userSP = SP;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 - 1;
+
+alias sys_num R1;
+sys_num = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-5)/512)]*512 + ((userSP-5)%512)];
+
+alias semID R3;
+
+alias count R4;
+
+alias proc_entry R5;
+proc_entry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16);
+
+alias page_entry R6;
+page_entry = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
+
+alias ssemID R7;
+
+if(sys_num == 19) then
+	//print "semlock";
+	//print [SYSTEM_STATUS_TABLE + 1];
+	[proc_entry + 9] = 19;
+	semID = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+	
+	if(semID<0 || semID>7 || [[proc_entry + 11]*512 + 512 - 16 + 2*semID] != SEMAPHORE) then
+                [[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+                [proc_entry + 9] = 0;
+                SP = [proc_entry + 13];
+                ireturn;
+        endif;
+
+	while([SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] != -1) do
+		[proc_entry + 4] = WAIT_SEMAPHORE;
+		[proc_entry + 5] = [[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1];
+		multipush(R0,R1,R3,R4,R5,R6);
+		call MOD_5;
+		multipop(R0,R1,R3,R4,R5,R6);
+	endwhile;
+
+	[SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] = [SYSTEM_STATUS_TABLE + 1];
+	[proc_entry + 9] = 0;
+	SP = [proc_entry + 13];
+	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	//print "retse";
+	//print [SYSTEM_STATUS_TABLE + 1];
+	ireturn;
+endif;
+
+if(sys_num == 20) then
+	//print "semunlo";
+	//print [SYSTEM_STATUS_TABLE + 1];
+	[proc_entry + 9] = 20;
+	semID = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+	ssemID = [[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1];
+
+        if(semID<0 || semID>7 || [[proc_entry + 11]*512 + 512 - 16 + 2*semID] != 1) then
+                [[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+                [proc_entry + 9] = 0;
+                SP = [proc_entry + 13];
+                ireturn;
+        endif;
+
+	if([SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] != -1) then
+		if([SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] != [SYSTEM_STATUS_TABLE + 1]) then
+			[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2;
+			[proc_entry + 9] = 0;
+			SP = [proc_entry + 13];
+			ireturn;
+		endif;
+		
+		[SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] = -1;
+		count = 0;
+
+		while(count <= 15) do
+			if(([PROCESS_TABLE + count*16 + 4] == WAIT_SEMAPHORE) && ([PROCESS_TABLE + count*16 + 5] == ssemID)) then
+				[PROCESS_TABLE + count*16 + 4] = READY;
+				[PROCESS_TABLE + count*16 + 5] = 0;//maybe possibly
+			endif;
+			count = count + 1;
+		endwhile;
+	endif;
+	
+	[proc_entry + 9] = 0;
+       	SP = [proc_entry + 13];
+       	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	//print "relsemun";
+	//print [SYSTEM_STATUS_TABLE + 1];
+        ireturn;
+
+endif;
+
