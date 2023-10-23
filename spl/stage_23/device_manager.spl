@@ -1,0 +1,90 @@
+//print "device";
+alias functionNum R1;
+alias currentPID R2;
+
+//DISK_STORE
+if(functionNum == 1) then
+	alias page_num R3;
+	alias block_num R4;
+
+	multipush(R1,R2,R3,R4);
+	R1 = 3;
+	R2 = currentPID;
+	call MOD_0;
+	multipop(R1,R2,R3,R4);
+	
+	[DISK_STATUS_TABLE + 1] = 1;
+	[DISK_STATUS_TABLE + 2] = page_num;
+	[DISK_STATUS_TABLE + 3] = block_num;
+
+	store(page_num,block_num);
+	[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+
+	multipush(R1,R2,R3,R4);
+	call MOD_5;
+	multipop(R1,R2,R3,R4);
+	return;
+endif;
+
+//DISK_LOAD
+if(functionNum == 2) then
+	alias page_num R3;
+	alias block_num R4;	
+	multipush(R1,R2,R3,R4);
+	R1 = 3;
+	R2 = currentPID;
+	
+	call MOD_0;
+	multipop(R1,R2,R3,R4);
+	//entries
+	[DISK_STATUS_TABLE + 1] = 0;
+	[DISK_STATUS_TABLE + 2] = page_num;
+	[DISK_STATUS_TABLE + 3] = block_num;
+	
+	load(page_num, block_num);
+	[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+	multipush(R1,R2,R3,R4);
+	
+	call MOD_5;
+	multipop(R1,R2,R3,R4);
+	return;
+endif;
+
+//TERMINAL_WRITE
+if(functionNum == 3) then
+        multipush(R1,R2,R3);
+        R1 = 8;
+        R2 = currentPID;
+        call MOD_0;
+        multipop(R1,R2,R3);
+        print R3;
+
+        multipush(R1,R2,R3);
+        R1 = 9;
+        R2 = currentPID;
+        call MOD_0;
+        multipop(R1,R2,R3);
+        return;
+endif;
+
+//TERMINAL_READ
+if(functionNum == 4) then
+	multipush(R1,R2,R3);
+	R1 = 8;
+	R2 = currentPID;
+	call MOD_0;
+
+	multipop(R1,R2,R3);
+	//breakpoint;
+	read;
+	[PROCESS_TABLE + (currentPID*16) + 4] = WAIT_TERMINAL;
+	multipush(R1,R2,R3);
+	call MOD_5;
+	
+	multipop(R1,R2,R3);
+	alias word_physical_address R4;
+	word_physical_address = ([PTBR + 2*(R3/512)]*512) + (R3%512);
+	//breakpoint;
+	[word_physical_address] = [PROCESS_TABLE + (currentPID*16) + 8];
+	return;
+endif;

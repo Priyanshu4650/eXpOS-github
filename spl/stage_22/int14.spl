@@ -1,11 +1,13 @@
-//print "int14beg";
+// Saving SP as UPTR
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
 
 alias userSP R0;
 userSP = SP;
 
+// Setting up of the Kernel stack
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 - 1;
 
+// Extracting system page number from user stack
 alias sys_num R1;
 sys_num = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-5)/512)]*512 + ((userSP-5)%512)];
 
@@ -21,12 +23,13 @@ page_entry = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
 
 alias ssemID R7;
 
+// Sem Lock 
 if(sys_num == 19) then
-	//print "semlock";
-	//print [SYSTEM_STATUS_TABLE + 1];
+	// setting the mode as SemLock
 	[proc_entry + 9] = 19;
 	semID = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
 	
+	// checking for a valid entry
 	if(semID<0 || semID>7 || [[proc_entry + 11]*512 + 512 - 16 + 2*semID] != SEMAPHORE) then
                 [[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
                 [proc_entry + 9] = 0;
@@ -34,30 +37,34 @@ if(sys_num == 19) then
                 ireturn;
         endif;
 
+	// Scheduling other processess 
 	while([SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] != -1) do
+		// setting the state as wait_semaphore
 		[proc_entry + 4] = WAIT_SEMAPHORE;
 		[proc_entry + 5] = [[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1];
+		// calling scheduler to schedule different processes
 		multipush(R0,R1,R3,R4,R5,R6);
 		call MOD_5;
 		multipop(R0,R1,R3,R4,R5,R6);
 	endwhile;
 
+	// Finally returning to the user mode
 	[SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] = [SYSTEM_STATUS_TABLE + 1];
 	[proc_entry + 9] = 0;
 	SP = [proc_entry + 13];
 	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
-	//print "retse";
-	//print [SYSTEM_STATUS_TABLE + 1];
 	ireturn;
 endif;
 
+// SemUnlock
 if(sys_num == 20) then
-	//print "semunlo";
-	//print [SYSTEM_STATUS_TABLE + 1];
+	// Sem Unlock as the mode
 	[proc_entry + 9] = 20;
 	semID = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
 	ssemID = [[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1];
 
+	// Checking if the semID is valid or invalid
+	// If invalid then return -1
         if(semID<0 || semID>7 || [[proc_entry + 11]*512 + 512 - 16 + 2*semID] != 1) then
                 [[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
                 [proc_entry + 9] = 0;
@@ -65,6 +72,7 @@ if(sys_num == 20) then
                 ireturn;
         endif;
 
+	// If current process has not locked the semaphore then return -2
 	if([SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] != -1) then
 		if([SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] != [SYSTEM_STATUS_TABLE + 1]) then
 			[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2;
@@ -73,9 +81,11 @@ if(sys_num == 20) then
 			ireturn;
 		endif;
 		
+		// Seeting the Locking PID to be -1
 		[SEMAPHORE_TABLE + 4*[[proc_entry + 11]*512 + 512 - 16 + 2*semID + 1]] = -1;
 		count = 0;
 
+		// Checking all the processes and setting the state to READY which was in WAIT_SEMAPHORE state
 		while(count <= 15) do
 			if(([PROCESS_TABLE + count*16 + 4] == WAIT_SEMAPHORE) && ([PROCESS_TABLE + count*16 + 5] == ssemID)) then
 				[PROCESS_TABLE + count*16 + 4] = READY;
@@ -85,12 +95,9 @@ if(sys_num == 20) then
 		endwhile;
 	endif;
 	
+	// Returning to the user mode
 	[proc_entry + 9] = 0;
        	SP = [proc_entry + 13];
        	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
-	//print "relsemun";
-	//print [SYSTEM_STATUS_TABLE + 1];
         ireturn;
-
 endif;
-

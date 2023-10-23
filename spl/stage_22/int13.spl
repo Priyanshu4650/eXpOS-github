@@ -1,11 +1,13 @@
-//print "int13beg";
+// Setting up of the UPTR
 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
 
 alias userSP R0;
 userSP = SP;
 
+// Setting up of the kernel stack
 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 - 1;
 
+// Extracting system page number fomr the user stack
 alias sys_num R1;
 sys_num = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-5)/512)]*512 + ((userSP-5)%512)];
 
@@ -15,9 +17,10 @@ count = 0;
 alias semID R4;
 
 if(sys_num == 17) then
-	//print "semget";
+	// Setting the mode as SemGet
 	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 17;
 
+	// Finding index of the free entry in the per process table
 	while(count <= 7) do
 		if([[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 + 512 - 16 + 2*count] == -1) then
 			break;
@@ -25,51 +28,52 @@ if(sys_num == 17) then
 		count = count + 1;
 	endwhile;
 	
+	// If none of the entries are free then return -1
 	if(count == 16) then
 		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
-		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0; //changed to 10 as this process is doomed to fail at this point
+		[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0; 
 		SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
 		ireturn;
 	endif;	
-	//print ("before");
-	//print count;
+
+	// calling acquire semaphore if an index is found
 	multipush(R0,R1,R12,R4);
 	R1 = 6;
 	R2 = [SYSTEM_STATUS_TABLE + 1];
 
 	call MOD_0;
 	
+	// If no semaphores are free then return -2
 	if(R0 == -1) then
-		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2; //check high level library interface for underst
+		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2; 
                 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
                 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
                 ireturn;
 	endif;
-	//print ("count");
-	//print count;
 	[[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 + 512 - 16 + 2*count] = SEMAPHORE;
 	[[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 + 512 - 16 + 2*count + 1] = R0;
 	multipop(R0,R1,R12,R4);
 
-	[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = count;//semID sending
+	[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = count;
 	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
         SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
-	//print "retsemget";
 	ireturn;
 endif;
 
 if(sys_num == 18) then
-	//print "semrel";
+	// Sem Release mode set
 	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 18;
 	semID = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)]; 	
 	
+	//checking for a valid entry of semaphore desriptor
 	if(semID<0 || semID>7 || [[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 + 512 - 16 + 2*semID] != 1) then
 		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
                 [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
                 SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
                 ireturn;
 	endif;
-	
+
+	// Calling release semaphore from resource manager
 	multipush(R0,R1,R3,R4);
 	R1 = 7;
 	R2 = [SYSTEM_STATUS_TABLE + 1];
@@ -81,6 +85,5 @@ if(sys_num == 18) then
 	SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13];
 	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
 	[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
-	//print "retsemrel";
 	ireturn;
 endif;

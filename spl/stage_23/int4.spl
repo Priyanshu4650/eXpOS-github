@@ -1,0 +1,167 @@
+alias proc_entry R8;
+proc_entry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16);
+
+alias page_entry R9;
+page_entry = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
+
+[proc_entry + 13] = SP;
+
+alias userSP R0;
+userSP = SP;
+
+SP = [proc_entry + 11]*512 - 1;
+
+alias sys_num R1;
+sys_num = [[page_entry + 2*((userSP-5)/512)]*512 + ((userSP-5)%512)];
+
+alias count R3;
+count = 0;
+
+alias looper R4;
+
+alias file_name R2;
+file_name = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+
+alias inode_entry R10;
+alias root_entry R11;
+
+if(sys_num == 1) then
+	[proc_entry + 9] = 1;
+	
+	alias permission R5;
+	permission = [[page_entry + 2*((userSP-3)/512)]*512 + ((userSP-3)%512)];
+
+	while(count < 60) do
+        	if(([INODE_TABLE + count*16 + 1] == file_name) && ([INODE_TABLE + count*16 + 0] == DATA)) then
+			[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+			call RetSeq;
+        	endif;
+		
+		if([INODE_TABLE + count*16 + 1] == -1) then
+			break;
+		endif;
+        	count = count + 1;
+	endwhile;
+
+	if(count == 60) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+		call RetSeq;
+	endif;
+	
+	inode_entry = INODE_TABLE + count*16;
+	root_entry = ROOT_FILE + count*8;		
+	
+	[inode_entry + 1] = file_name;
+	[inode_entry + 2] = 0;
+	[inode_entry + 0] = DATA;
+
+	looper = 8;
+	while(looper <= 11) do
+		[inode_entry + looper] = -1;
+		looper = looper + 1;
+	endwhile;
+
+	[inode_entry + 3] = [proc_entry + 3];
+	[inode_entry + 4] = permission;
+
+	[root_entry + 0] = [inode_entry + 1];
+	[root_entry + 1] = [inode_entry + 2];
+	[root_entry + 2] = [inode_entry + 0];
+	[root_entry + 3] = [inode_entry + 3];
+	[root_entry + 4] = [inode_entry + 4];
+	
+	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	call RetSeq;
+endif;
+
+if(sys_num == 4) then
+	[proc_entry + 9] = 4;
+
+	while(count < 60) do
+		if([INODE_TABLE + count*16 + 1] == file_name) then
+			break;
+		endif;
+		count = count + 1;
+	endwhile;
+
+	if(count == 60) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+                call RetSeq;
+        endif;
+	
+	inode_entry = INODE_TABLE + count*16;
+	root_entry = ROOT_FILE + count*8;
+
+	if([inode_entry + 0] != DATA) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+                call RetSeq;
+        endif;
+
+	if(([inode_entry + 4] == 0) && ([inode_entry + 3] != 0) && ([inode_entry + 3] != [proc_entry + 3])) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+                call RetSeq;
+        endif;
+	
+	multipush(R0,R1,R2,R3); //HEREEEEEEEEEEEEEEEEEEEEEEEE BUDDYYYYYYYYYYYYYYYY
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = count;
+	call MOD_0;
+	multipop(R0,R1,R2,R3);
+
+	if([FILE_STATUS_TABLE + count*4 + 1] != -1) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2;
+                call RetSeq;
+        endif;
+
+	looper = 8;
+	alias disk_block R5;
+	alias in_looper R6;
+	while(looper <= 11) do
+		in_looper = 0;
+		disk_block = [inode_entry + looper];
+		while(in_looper < 4) do
+			if(([BUFFER_TABLE + 4*in_looper + 0] == disk_block) && ([BUFFER_TABLE + 4*in_looper + 1] == 1)) then
+				[BUFFER_TABLE + 4*in_looper + 1] = 0;
+				
+				multipush(R0,R1,R2,R3,R4,R5,R6);
+				R1 = 4;
+				R2 = disk_block;
+				call MOD_2;
+				multipop(R0,R1,R2,R3,R4,R5,R6);
+				
+			endif;
+			in_looper = in_looper + 1;
+		endwhile;
+		looper = looper + 1;
+	endwhile;
+	
+	looper = 0;
+	while(looper <= 15) do
+		if(looper == 2) then
+			[inode_entry + looper] = 0;
+		else
+			[inode_entry + looper] = -1;
+		endif;
+		if(looper <= 7) then
+			[root_entry + looper] = -1;
+		endif;
+		looper = looper + 1;
+	endwhile;
+	
+	multipush(R0,R1,R2,R3,R4,R5,R6);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = count;
+	call MOD_0;
+	multipop(R0,R1,R2,R3,R4,R5,R6);
+
+	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	call RetSeq;
+endif;
+
+RetSeq:
+	[proc_entry + 9] = 0;
+        SP = userSP;
+        ireturn;
+

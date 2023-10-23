@@ -1,0 +1,21 @@
+int main()
+{
+decl
+	int temp,permission;
+	string name;
+enddecl
+begin
+	temp = exposcall ( "Write", -2,"File Name?");
+	temp = exposcall ( "Read", -1, name);
+	temp = exposcall ( "Write", -2,"Permission?");
+	temp = exposcall ( "Read", -1, permission);
+	temp = exposcall ( "Create", name, permission);
+	if(temp == -1) then
+		temp = exposcall ( "Write", -2, "No free entry");
+	endif;
+	if(temp == 0) then
+		temp = exposcall ( "Write", -2, "Suc or 'lrdy in");
+	endif;
+	return 0;
+end
+}
