@@ -1,14 +1,18 @@
+// Gettting the process tablle entry for the current process
 alias proc_entry R8;
 proc_entry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16);
 
+// Getting the page table entry for the current process
 alias page_entry R9;
 page_entry = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
 
+// Setting UPTR as Stack Pointer
 [proc_entry + 13] = SP;
 
 alias userSP R0;
 userSP = SP;
 
+// Setting up of the kernel stack
 SP = [proc_entry + 11]*512 - 1;
 
 alias sys_num R1;
@@ -25,58 +29,75 @@ file_name = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
 alias inode_entry R10;
 alias root_entry R11;
 
+// System call number for create system call
 if(sys_num == 1) then
+	
+	// Setting the mdoe to be for create system call
 	[proc_entry + 9] = 1;
 	
+	// SEtting up of the permisson and getting it from the page table entry of the current process
 	alias permission R5;
 	permission = [[page_entry + 2*((userSP-3)/512)]*512 + ((userSP-3)%512)];
 
+	// Finding space in INODE TABLE
 	while(count < 60) do
+		
+		// Condition for the file to be already present in the INODE TABLE
         	if(([INODE_TABLE + count*16 + 1] == file_name) && ([INODE_TABLE + count*16 + 0] == DATA)) then
 			[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
 			call RetSeq;
         	endif;
 		
+		// If we get a free space we break the loop
 		if([INODE_TABLE + count*16 + 1] == -1) then
 			break;
 		endif;
         	count = count + 1;
 	endwhile;
 
+	// If INODE TABLE is full then return it.
 	if(count == 60) then
 		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
 		call RetSeq;
 	endif;
 	
+	// Getting the inode table entry and root file entry for the current inode index
 	inode_entry = INODE_TABLE + count*16;
 	root_entry = ROOT_FILE + count*8;		
 	
+	// storing the file name, size and the file type into the inode table
 	[inode_entry + 1] = file_name;
 	[inode_entry + 2] = 0;
 	[inode_entry + 0] = DATA;
 
+	// WHY ?
 	looper = 8;
 	while(looper <= 11) do
 		[inode_entry + looper] = -1;
 		looper = looper + 1;
 	endwhile;
 
+	// Setting up the user id from process table and permission as an input
 	[inode_entry + 3] = [proc_entry + 3];
 	[inode_entry + 4] = permission;
 
+	// Setting up of the file size, file name, file type, user id and permission in the inode table
 	[root_entry + 0] = [inode_entry + 1];
 	[root_entry + 1] = [inode_entry + 2];
 	[root_entry + 2] = [inode_entry + 0];
 	[root_entry + 3] = [inode_entry + 3];
 	[root_entry + 4] = [inode_entry + 4];
-	
+
 	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
 	call RetSeq;
 endif;
 
+// Delete suystem call
 if(sys_num == 4) then
+	// Setting the mode as delete sys call
 	[proc_entry + 9] = 4;
 
+	//checking if there is an entry with file_name in the inode table
 	while(count < 60) do
 		if([INODE_TABLE + count*16 + 1] == file_name) then
 			break;
@@ -84,31 +105,37 @@ if(sys_num == 4) then
 		count = count + 1;
 	endwhile;
 
+	// If not present then return
 	if(count == 60) then
 		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
                 call RetSeq;
         endif;
 	
+	// inode table entry and root file entry for the file
 	inode_entry = INODE_TABLE + count*16;
 	root_entry = ROOT_FILE + count*8;
 
+	// checking whether it is in .dat format or not
 	if([inode_entry + 0] != DATA) then
 		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
                 call RetSeq;
         endif;
 
+	// checking for a valid entry in the inode table
 	if(([inode_entry + 4] == 0) && ([inode_entry + 3] != 0) && ([inode_entry + 3] != [proc_entry + 3])) then
 		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
                 call RetSeq;
         endif;
 	
-	multipush(R0,R1,R2,R3); //HEREEEEEEEEEEEEEEEEEEEEEEEE BUDDYYYYYYYYYYYYYYYY
+	// Calling acquire inode from resouce manager
+	multipush(R0,R1,R2,R3); 
 	R1 = 4;
 	R2 = [SYSTEM_STATUS_TABLE + 1];
 	R3 = count;
 	call MOD_0;
 	multipop(R0,R1,R2,R3);
 
+	// if locking pid is not -1 then return with the value that the file is open
 	if([FILE_STATUS_TABLE + count*4 + 1] != -1) then
 		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2;
                 call RetSeq;
@@ -136,6 +163,7 @@ if(sys_num == 4) then
 		looper = looper + 1;
 	endwhile;
 	
+	// invalidating all the entries in the inode table and the root entry
 	looper = 0;
 	while(looper <= 15) do
 		if(looper == 2) then
@@ -148,7 +176,8 @@ if(sys_num == 4) then
 		endif;
 		looper = looper + 1;
 	endwhile;
-	
+
+	// calling resource manager to release inode
 	multipush(R0,R1,R2,R3,R4,R5,R6);
 	R1 = 5;
 	R2 = [SYSTEM_STATUS_TABLE + 1];

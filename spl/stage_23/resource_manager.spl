@@ -1,4 +1,4 @@
-//print "resource";
+print "resource";
 alias functionNum R1;
 alias currentPID R2;
 
@@ -15,8 +15,10 @@ if(functionNum == 3) then
 	return;
 endif;
 
+// acquire disk
 if(functionNum == 4) then
 	alias inode_index R3;
+	// wait till the time when locking pid is not -1
 	while([FILE_STATUS_TABLE + 4*inode_index + 0] != -1) do
 		[PROCESS_TABLE + currentPID*16 + 4] = WAIT_FILE;
 		[PROCESS_TABLE + currentPID*16 + 5] = inode_index;
@@ -24,28 +26,36 @@ if(functionNum == 4) then
 		call MOD_5;
 		multipop(R1,R2,R3);
 	endwhile;
-	
+
+	// if name is -1
 	if([INODE_TABLE + inode_index*16 +1] == -1) then
 		R0 = -1;
 		return;
 	endif;
 	
+	// returning in the case if the current running process has opened the file
 	[FILE_STATUS_TABLE + 4*inode_index + 0] = currentPID;
 	R0 = 0;
 	return;
 endif;
 
+// release inode
 if(functionNum == 5) then
 	alias inode_index R3;
+
+	// checking if it the current process who has acquired the file
 	if([FILE_STATUS_TABLE + 4*inode_index + 0] != currentPID) then
 		R0 = -1;
 		return;
 	endif;
 	
+	// releasing the inode from the file status table
 	[FILE_STATUS_TABLE + 4*inode_index + 0] = -1;
 	
 	alias counter R4;
 	counter = 0;
+	
+	// checking for the file which was put on wait file corresponding to the inode index.
 	while(counter <= 15) do
 		if(([PROCESS_TABLE + counter*16 + 4] == WAIT_FILE) && ([PROCESS_TABLE + counter*16 + 5] == inode_index)) then
 			[PROCESS_TABLE + counter*16 + 4] = READY;
