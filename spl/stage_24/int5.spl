@@ -1,0 +1,113 @@
+// Setting up of UPTR and Kernel stack 
+alias userSP R0;
+userSP = SP;
+
+// Process table entry of the current process
+alias proc_entry R9;
+proc_entry = PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16);
+
+// Page table entry of the current process
+alias page_entry R10;
+page_entry = PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20);
+
+[proc_entry + 13] = SP;
+
+SP = [proc_entry + 11]*512 - 1;
+
+alias sys_num  R3;
+sys_num = [[page_entry + 2*((userSP-5)/512)]*512 + ((userSP-5)%512)];
+
+// System call number for open file operation
+if(sys_num == 2) then
+	// Setting up the mode to be for open sys call
+	[proc_entry + 9] = 2;
+	
+	alias file_name R1;
+	file_name = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];	
+	//print file_name;
+	alias count R2;
+	count = 0;
+
+	// Checking whether we can open the file or not
+	while(count <= 7) do
+		if([[proc_entry + 11]*512 + 512 - 16 + 2*count] == -1) then
+			break;
+		endif;
+		count = count + 1;
+	endwhile;
+
+	// Returning from the function with -3 if process has reached number of resources
+	if(count == 8) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -3;
+		call RetSeq;
+	endif;
+	
+	//open call to file manager module
+	multipush(R0,R1,R2,R3,R9,R10);
+	R2 = file_name;
+	R1 = 3;
+	call MOD_3;
+	
+	// Return the error code in case of an error
+	if(R0 < 0) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = R0;
+	 	call RetSeq;
+	endif;
+	
+	// Setting up of the per process table entry
+	[[proc_entry + 11]*512 + 512 - 16 + 2*count] = FILE;
+	[[proc_entry + 11]*512 + 512 - 16 + 2*count + 1] = R0;
+
+	multipop(R0,R1,R2,R3,R9,R10);
+
+	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = count; // index of entry serves as file descriptor of the file
+	call RetSeq;
+endif;
+
+// System call number for close file operation
+if(sys_num == 3) then
+
+	// setting the mode for close 
+	[proc_entry + 9] = 3;
+	
+	// getting file descriptor
+	alias file_descriptor R1;
+	file_descriptor = [[page_entry + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+
+	// checking for valid file descriptor 
+	if((file_descriptor < 0) || (file_descriptor > 7)) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+		call RetSeq;
+        endif;
+	
+	// condition for the file descriptor to be invalid
+	if(([[proc_entry + 11]*512 + 512 - 16 + 2*file_descriptor] == -1) || ([[proc_entry + 11]*512 + 512 - 16 + 2*file_descriptor] != FILE)) then
+		[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+		call RetSeq;
+        endif;
+
+	// getting the open index 
+	alias open_index R2;
+	open_index = [[proc_entry + 11]*512 + 512 - 16 + 2*file_descriptor + 1];
+	
+	// calling close function from file manager module
+	multipush(R0,R1,R2,R3,R9,R10);
+	R1 = 4;
+	R2 = open_index;
+	call MOD_3;
+	multipop(R0,R1,R2,R3,R9,R10);
+	
+	// invalidating the entries
+	[[proc_entry + 11]*512 + 512 - 16 + 2*file_descriptor] = -1;
+	[[proc_entry + 11]*512 + 512 - 16 + 2*file_descriptor + 1] = -1;
+
+	// successfull exit
+	[[page_entry + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+	call RetSeq;
+endif;
+
+RetSeq:
+	[proc_entry + 9] = 0;
+        SP = userSP;
+	ireturn;
+

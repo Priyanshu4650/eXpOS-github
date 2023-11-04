@@ -1,0 +1,53 @@
+int main()
+{
+decl
+	int temp,fd;
+	string name,receive;
+enddecl
+begin
+	write("errcases");
+	//write("chek0");
+	temp = exposcall ( "Write", -2,"File Name?");
+	//write("chek1");
+	temp = exposcall ( "Read", -1, name);
+	if(temp == -1) then
+                write("invalid filedes");
+        endif;
+        if(temp == -2) then
+                write("EOF");
+        endif;
+
+	//write("chek2");
+	fd = exposcall ( "Open",name);
+	if(fd == -1) then
+		write("no found/d/r");
+	else
+		if(fd == -2) then
+			write("lmt open");
+		endif;
+		if(fd == -3) then
+			write("lmt res");
+		endif;
+	endif;
+
+	//write("chek3");
+	//write(fd);
+	temp = exposcall ( "Read", fd,receive);
+	if(temp == -1) then
+		write("invalid filedes");
+	endif;
+	if(temp == -2) then
+		write("EOF");
+	endif;
+
+	//write("chek4");
+	temp = exposcall ( "Write", -2, receive);
+	//write("dandandan");
+	temp = exposcall ( "Close", fd);
+	if(temp == -1) then
+		write("invalid filedes");
+	endif;
+	//write("chekfinale");
+	return 0;
+end
+}

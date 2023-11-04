@@ -1,0 +1,201 @@
+//all functions expect to have inode locked before they are used
+alias functionNum R1;
+
+//BUFFERED_READ
+if(functionNum == 2) then
+	alias disk_block_num R2;
+	alias offset R3;
+	alias mem_add R4;
+
+	alias buffer_num R5;
+	buffer_num = disk_block_num%4;
+	multipush(R0,R1,R2,R3,R4,R5);
+	R1 = 1;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = buffer_num;
+	call MOD_0;
+	multipop(R0,R1,R2,R3,R4,R5);
+	
+	alias page_num R6;
+	page_num = 71 + buffer_num;
+	//print "pager";
+	//print page_num;
+	if([BUFFER_TABLE + 4*buffer_num + 0] != disk_block_num) then
+		if([BUFFER_TABLE + 4*buffer_num + 1] == 1) then
+			print "notcleanr";
+			multipush(R0,R1,R2,R3,R4,R5,R6);
+			R1 = 1;
+			R3 = page_num;//PG
+			R4 = disk_block_num;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			call MOD_4;
+			multipop(R0,R1,R2,R3,R4,R5,R6);
+
+			[BUFFER_TABLE + 4*buffer_num + 1] = 0;
+		endif;
+		
+		multipush(R0,R1,R2,R3,R4,R5,R6);
+		R1 = 2;
+		R3 = page_num;//PG
+		R4 = disk_block_num;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		//print R4;
+		//print R2;
+		call MOD_4;
+		multipop(R0,R1,R2,R3,R4,R5,R6);
+
+		[BUFFER_TABLE + 4*buffer_num + 0] = disk_block_num;//yeh kaha se naya bock number hai tf
+	endif;
+	//print "klkl";
+	//print [(disk_block_num)*512+500];
+	//print [95*512];
+	//print [mem_add];
+	//print page_num;
+	//print [page_num];
+	//print [page_num + 20];	
+	[mem_add] = [page_num*512 + offset];//copy contents of offset location	
+
+	multipush(R0,R1,R2,R3,R4,R5,R6);
+	R1 = 2;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = buffer_num; //pls checks this
+	call MOD_0;
+	multipop(R0,R1,R2,R3,R4,R5,R6);
+
+	R0 = 0;
+	return;
+endif;				
+
+//OPEN
+if(functionNum == 3) then
+	alias file_name R2;
+	alias inode_index R3;
+	inode_index = 0;
+
+	// getting the inode index for the file
+	while(inode_index < 60) do
+		if([INODE_TABLE + inode_index*16 + 1] == file_name) then
+			break;
+		endif;
+		inode_index = inode_index + 1;
+	endwhile;
+
+	// not present condition
+	if(inode_index == 60) then
+		print "file nahi h";
+		R0 = -1;
+		return;
+	endif;
+
+	// CAlling acquire inode from the resource manager
+	multipush(R0,R1,R2,R3);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = inode_index;
+	call MOD_0;
+	
+	// return incase of some error
+	if(R0 == -1) then
+		R0 = -1;
+		return;
+	endif;
+	multipop(R0,R1,R2,R3);
+
+	// checking for the file to be of EXEC format
+	if([INODE_TABLE + inode_index*16 + 0] == EXEC) then
+		
+		// release inode
+		multipush(R0,R1,R2,R3);
+		R1 = 5;
+		R2 = [SYSTEM_STATUS_TABLE + 1];
+		R3 = inode_index;
+		call MOD_0;
+		multipop(R0,R1,R2,R3);
+		R0 = -1;
+		return;
+	endif;
+	
+	// getting the open index of the file
+	alias open_index R4;
+	open_index = 0;
+	while(open_index < 32) do
+		if([OPEN_FILE_TABLE + 4*open_index + 0] == -1) then
+			break;
+		endif;
+		open_index = open_index + 1;
+	endwhile;
+
+	// cannot be opened
+	if(open_index == 32) then
+		multipush(R0,R1,R2,R3,R4); //CHEKCERRR
+                R1 = 5;
+                R2 = [SYSTEM_STATUS_TABLE + 1];
+                R3 = inode_index;
+                call MOD_0;
+                multipop(R0,R1,R2,R3,R4);
+                R0 = -2;
+                return;
+        endif;
+
+	// if file name is root INODEX INDeX field is initialized to INODE_ROOT (0).
+	if(file_name == "root") then
+		[OPEN_FILE_TABLE + 4*open_index + 0] = INODE_ROOT;
+	else
+		// Incrementing the open count of the file by 1
+		if([FILE_STATUS_TABLE + inode_index*4 + 1] == -1) then //checker
+			[FILE_STATUS_TABLE + inode_index*4 + 1] = 1;
+		else
+			[FILE_STATUS_TABLE + inode_index*4 + 1] = [FILE_STATUS_TABLE + inode_index*4 + 1] + 1;
+		endif;
+		[OPEN_FILE_TABLE + 4*open_index + 0] = inode_index;
+	endif;
+
+	[OPEN_FILE_TABLE + 4*open_index + 1] = 1;
+	[OPEN_FILE_TABLE + 4*open_index + 2] = 0;
+
+	// releasing the inode
+	multipush(R0,R1,R2,R3,R4);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = inode_index;
+	call MOD_0;
+	multipop(R0,R1,R2,R3,R4);
+
+	R0 = open_index;
+	return;	
+endif;
+
+//CLOSE
+if(functionNum == 4) then
+	alias open_index R2;
+	alias inode_index R3;
+	alias count R4;
+	count = 0;
+
+	// getting the inodex index from the open file table
+	inode_index = [OPEN_FILE_TABLE + 4*open_index + 0];
+
+	// decrementing the open file count 
+	[OPEN_FILE_TABLE + 4*open_index + 1] = [OPEN_FILE_TABLE + 4*open_index + 1] - 1;
+	
+	// if the open instance of the count becomes 0
+	if([OPEN_FILE_TABLE + 4*open_index + 1] == 0) then
+		
+		// invalidating the entry by setting the fields
+		while(count <= 3) do
+			[OPEN_FILE_TABLE + 4*open_index + count] = -1;
+			count = count + 1;
+		endwhile;
+		
+		// decrement the file open count as it is not a root file
+		if(inode_index != INODE_ROOT) then
+			[FILE_STATUS_TABLE + inode_index*4 + 1] = [FILE_STATUS_TABLE + inode_index*4 + 1] - 1;//filename check from inodetable mybe tho same thng
+		endif;
+		
+		// file open count in file status table becomes 0 so we set it to -1
+		if([FILE_STATUS_TABLE + inode_index*4 + 1] == 0) then
+			[FILE_STATUS_TABLE + inode_index*4 + 1] = -1; 
+		endif;
+	endif;
+	return;
+endif;

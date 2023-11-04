@@ -52,7 +52,7 @@ multipush(R0,R1);
 R1 = 1;
 R2 = currentPID;
 R3 = 61;
-R2 = 2;
+R4 = 2;
 call MOD_4;
 multipop(R0,R1);
 

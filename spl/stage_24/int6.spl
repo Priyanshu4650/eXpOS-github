@@ -1,0 +1,138 @@
+// setting the mode to be 7
+[PROCESS_TABLE + ( [SYSTEM_STATUS_TABLE + 1]*16 ) + 9] = 7;
+
+alias userSP R0;
+userSP = SP;
+
+// Setting up of the UPTR and kernel stack
+[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 13] = SP;
+
+SP = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 - 1;
+
+// getting the file descriptor from page table
+alias fileDescriptor R1;
+fileDescriptor = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-4)/512)]*512 + ((userSP-4)%512)];
+
+// checking for invalid file descriptor
+if(fileDescriptor == -1) then
+	alias word_address R3; 
+	word_address = [([PTBR + 2*((userSP-3)/512)]*512) + ((userSP-3)%512)];
+	
+	// calling terminal read fmro the device manager module
+	multipush(R0,R1,R3);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = word_address;
+	call MOD_4;
+	multipop(R0,R1,R3);
+	[([PTBR + 2*((userSP-1)/512)]*512) + ((userSP-1)%512)] = 0;
+else
+	
+	alias buffer_logical R2;
+	buffer_logical = [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-3)/512)]*512 + ((userSP-3)%512)];
+	
+	// checking for the file descriptor to be valid or else return with a -1 signifying invalid file descriptor
+	if((fileDescriptor < 0) || (fileDescriptor > 7)) then
+		[([PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512) + ((userSP-1)%512)] = -1;
+		call RetSeq;
+	endif;
+
+	// getting the resource identifier frmo the per process table
+	alias resource_entry R3;
+	resource_entry = [PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 11]*512 + 512 - 16 + 2*fileDescriptor;
+
+	// invalid conditions
+	if(([resource_entry] == -1) || ([resource_entry] != FILE)) then
+		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+		call RetSeq;
+	endif;
+	
+	// gettin index from the open file table and inode table
+	alias open_index R4;
+	open_index = [resource_entry + 1];
+	alias inode_index R5;
+	inode_index = [OPEN_FILE_TABLE + 4*open_index + 0];
+
+	// calling acquire inode from the resource manager
+	multipush(R0,R1,R2,R3,R4,R5);
+	R1 = 4;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = inode_index;
+	call MOD_0;
+
+	// invalid file descriptor
+	if(R0 == -1) then
+		[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -1;
+                call RetSeq;
+	endif;
+	multipop(R0,R1,R2,R3,R4,R5);
+	
+	// setting up of the lseek
+	alias lseek R6;
+	lseek = [OPEN_FILE_TABLE + 4*open_index + 2];
+	alias buffer_physical R7;
+	buffer_physical = [PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*(buffer_logical/512)]*512 + (buffer_logical)%512;
+	// if the inode index as that of the root file 
+	if(inode_index == INODE_ROOT) then
+
+		// if lseek is 480 then call release inode and return -2 indicating it reached end of the file
+		if(lseek == 480) then
+			multipush(R0,R1,R2,R3,R4,R5,R6,R7);
+			R1 = 5;
+			R2 = [SYSTEM_STATUS_TABLE + 1];
+			R3 = inode_index;
+			call MOD_0;
+			multipop(R0,R1,R2,R3,R4,R5,R6,R7);
+			[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2;
+               		call RetSeq;
+		endif;
+		[buffer_physical] = [ROOT_FILE + lseek];
+		[OPEN_FILE_TABLE + 4*open_index + 2] = [OPEN_FILE_TABLE + 4*open_index + 2] + 1;
+	
+	else
+		// if lseek is the same as the file sze call release inode and return -2 
+		if(lseek == [INODE_TABLE + inode_index*16 + 2]) then
+			multipush(R0,R1,R2,R3,R4,R5,R6,R7);
+                        R1 = 5;
+                        R2 = [SYSTEM_STATUS_TABLE + 1];
+                        R3 = inode_index;
+                        call MOD_0;
+                        multipop(R0,R1,R2,R3,R4,R5,R6,R7);
+                        [[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = -2;
+                        call RetSeq;
+                endif;
+		
+		// getting block number 
+		alias block_num R8;
+		block_num = [INODE_TABLE + inode_index*16 + 8 + lseek/512];			
+		// calling file buffer from the file manager module
+		multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+		R1 = 2;
+		R2 = block_num;//disk_block_num
+		R3 = lseek%512;//offset
+		R4 = buffer_physical;//memory_Address
+		call MOD_3;
+		multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+
+		[OPEN_FILE_TABLE + 4*open_index + 2] = [OPEN_FILE_TABLE + 4*open_index + 2] + 1;
+	endif;
+
+	// calling release inode from resource manager
+	multipush(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+	R1 = 5;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = inode_index;
+	call MOD_0;
+	multipop(R0,R1,R2,R3,R4,R5,R6,R7,R8);
+
+endif;
+
+[[PAGE_TABLE_BASE + ([SYSTEM_STATUS_TABLE + 1]*20) + 2*((userSP-1)/512)]*512 + ((userSP-1)%512)] = 0;
+
+call RetSeq;
+
+RetSeq:
+	[PROCESS_TABLE + ([SYSTEM_STATUS_TABLE + 1]*16) + 9] = 0;
+	SP = userSP;
+	ireturn;
+
