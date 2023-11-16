@@ -8,9 +8,10 @@ load --module 1 ../spl/stage_24/process_manager.xsm
 load --module 2 ../spl/stage_26/memory_manager.xsm
 load --module 3 ../spl/stage_26/file_manager.xsm
 load --module 4 ../spl/stage_23/device_manager.xsm
-load --module 5 ../spl/stage_20/scheduler.xsm
-load --module 7 ../spl/stage_26/boot_module.xsm
-load --int=timer ../spl/stage_17/timer.xsm
+load --module 5 ../spl/stage_27/scheduler.xsm
+load --module 6 ../spl/stage_27/pager_module.xsm
+load --module 7 ../spl/stage_27/boot_module.xsm
+load --int=timer ../spl/stage_27/timer.xsm
 load --int=console ../spl/stage_17/console_interrupt.xsm
 load --int=disk ../spl/stage_18/disk_interrupt.xsm
 load --int=4 ../spl/stage_23/int4.xsm
@@ -27,13 +28,4 @@ load --int=14 ../spl/stage_22/int14.xsm
 load --int=15 ../spl/stage_26/int15.xsm
 load --int=16 ../spl/stage_26/int16.xsm
 load --int=17 ../spl/stage_26/int17.xsm
-load --os ../spl/stage_26/os_startup.xsm
-load --exec ../expl/samples/fork_21.xsm
-load --exec ../expl/samples/pid.xsm
-load --exec ../expl/samples/parent.xsm
-load --exec ../expl/samples/child.xsm
-load --exec ../expl/samples/read_wr.xsm
-load --exec ../expl/samples/file_src.xsm
-load --exec ../expl/samples/file_dlt.xsm
-load --exec ../expl/samples/file_rd.xsm
-load --exec ../expl/samples/file_rd2.xsm
+load --os ../spl/stage_27/os_startup.xsm
