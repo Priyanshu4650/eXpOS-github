@@ -2,8 +2,8 @@
 
 alias FunctionNum R1;
 alias currentPID R2;
-
 // Get PCB Entry 
+// to go through all the processs and checking whether we can run one more process or not
 if(FunctionNum == 1) then
 	alias count R3;
 	count = 0;
@@ -61,6 +61,8 @@ endif;
 
 if(FunctionNum == 4) then
 	PTBR = PAGE_TABLE_BASE;
+
+	// invalidating the library pages
 	[PTBR + currentPID*20 + 0] = -1;
 	[PTBR + currentPID*20 + 1] = "0000";
 	[PTBR + currentPID*20 + 2] = -1;

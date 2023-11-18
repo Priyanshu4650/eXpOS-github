@@ -4,6 +4,7 @@ alias currentPID R2;
 
 // function number 3 is for acquiring disk
 if(functionNum == 3) then
+	// going inside a busy loop
 	while([DISK_STATUS_TABLE + 0] == 1) do
 		[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
 		multipush(R1,R2);
@@ -12,14 +13,15 @@ if(functionNum == 3) then
 		call MOD_5;
 		multipop(R1,R2);
 	endwhile;
+
+	// acquiring by setting its status to 1 signifying occupied and setting up the current pid as the pid which has acquired the disk
 	[DISK_STATUS_TABLE + 0] = 1;
 	[DISK_STATUS_TABLE + 4] = currentPID;
 	return;
 endif;
 
 // Acquiring terminal
-if(functionNum == 8) then
-	
+if(functionNum == 8) then	
 	while([TERMINAL_STATUS_TABLE + 0] == 1) do
 		[PROCESS_TABLE + (currentPID*16) + 4] = WAIT_TERMINAL;
 		multipush(R1,R2);
